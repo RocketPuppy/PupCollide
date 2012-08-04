@@ -18,7 +18,7 @@ sendMessage queue =
     do  putStrLn $ "Enter username:"
         message <- getLine
         let event = case message of
-                        "lo" -> Logout
+                        "lo" -> Logout $ Username ""
                         xs -> Login $ Username xs
         atomically $ writeThing queue (lookupPriority event) event
 
