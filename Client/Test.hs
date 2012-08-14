@@ -8,11 +8,12 @@ import Control.Monad
 import Text.Parsec
 import HandlersClient
 import Control.Concurrent
+import Control.Exception.Base (finally)
 
 main =
-    do  (q1, q2) <- doClient Nothing 3
+    do  (q1, q2, dc) <- doClient Nothing 3
         forkIO $ recvEvents q2
-        forever $ sendMessage q1
+        finally (forever $ sendMessage q1) (putStrLn "closing..." >> dc)
 
 sendMessage queue =
     do  putStrLn $ "Enter username:"

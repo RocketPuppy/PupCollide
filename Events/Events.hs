@@ -5,6 +5,7 @@ import Text.Parsec hiding (Error)
 import qualified PupEventsServer as Server
 import System.Environment
 import qualified Data.Time.Clock as Time
+import qualified Data.Time.Calendar as Cal
 import qualified Text.JSON.Parsec as JSONP
 import qualified Text.JSON
 import Text.JSON.Generic hiding (Error)
@@ -27,10 +28,10 @@ data Event =
     | GameList [Game]
     -- Errors
     | Error ErrorCode
-    deriving (Typeable, Data)
+    deriving (Eq, Typeable, Data, Show)
 
 data ErrorCode = AlreadyRegistered | UserExists | NotLoggedIn
-    deriving (Typeable, Data)
+    deriving (Eq, Typeable, Data, Show)
 
 data Game =
     Game    { gameUuid :: UUID
@@ -41,22 +42,25 @@ data Game =
             , gameStarted :: Maybe Time.UTCTime
             , gameEnded :: Maybe Time.UTCTime
             }
-    deriving (Typeable, Data)
-
+    deriving (Eq, Typeable, Data, Show)
+instance Show Time.UTCTime where
+    show time = "Day: " ++ 
+        show (Cal.toModifiedJulianDay $ Time.utctDay time) ++ " Time: " ++
+        show (Time.utctDayTime time)
 data GameStatus = Created | InProgress | Ended
-    deriving (Typeable, Data)
+    deriving (Eq, Typeable, Data, Show)
 
 data Ball =
     Ball    { ballUsername :: Maybe Username
             , ballPosition :: Maybe (Float, Float)
             }
-    deriving (Eq, Typeable, Data)
+    deriving (Eq, Typeable, Data, Show)
 
 newtype Username = Username String
     deriving (Eq, Typeable, Data, Show)
 
 newtype UUID = UUID String
-    deriving (Eq, Typeable, Data)
+    deriving (Eq, Typeable, Data, Show)
 
 
 --------------------

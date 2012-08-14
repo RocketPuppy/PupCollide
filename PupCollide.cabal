@@ -8,51 +8,39 @@ Name:                PupCollide
 -- (http://www.haskell.org/haskellwiki/Package_versioning_policy) for
 -- standards guiding when and how versions should be incremented.
 Version:             0.1
-
--- A short (one-line) description of the package.
-Synopsis:            A game about bouncing balls.
-
--- A longer description of the package.
-Description:         You play a ball. Your objective is to avoid being hit by the other bouncing balls, some of which are player controlled. This game was created as a proof-of-concept for a more complex game using OpenGL and Pup-Events.
-
--- The license under which the package is released.
+Synopsis:            A multiplayer clone of KCollide that uses PupEvents.
+Description:         This is a clone of KCollide and other similar games that is multiplayer. It's mostly intended as a proof-of-concept of creating a fairly complex multiplayer game in Haskell. It uses the PupEvents framework.
 License:             GPL-3
-
--- The file containing the license text.
 License-file:        LICENSE
-
--- The package author(s).
 Author:              Daniel Wilson
-
--- An email address to which users can send suggestions, bug reports,
--- and patches.
 Maintainer:          wilsonhardrock@gmail.com
-
--- A copyright notice.
--- Copyright:           
-
 Category:            Game
-
 Build-type:          Simple
+Cabal-version:       >=1.10
 
--- Extra files to be distributed with the package, such as examples or
--- a README.
--- Extra-source-files:  
+Source-repository head
+  type:     git
+  location: git://github.com/RocketPuppy/PupCollide.git
 
--- Constraint on the version of Cabal needed to build this package.
-Cabal-version:       >=1.2
+Executable pup-collide-server
+  hs-source-dirs:   Server, Events
+  main-is:          Main.hs
+  other-modules:    Events, Server
+  build-depends:    base == 4.*, random, uuid, stm, json, time, Pup-Events-Server >=1.1.4, parsec
+  default-language: Haskell98
+  ghc-options:      -threaded
 
+--Executable pup-collide-client
+--  hs-source-dirs:   Client, Events
+--  main-is:          Client.hs
+--  other-modules:    Events, HandlersClient
+--  default-language: Haskell98
 
-Executable PupCollide
-  -- .hs or .lhs file containing the Main module.
-  -- Main-is:             
-  
-  -- Packages needed in order to build this package.
-  -- Build-depends:       
-  
-  -- Modules not exported by this package.
-  -- Other-modules:       
-  
-  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
-  -- Build-tools:         
-  
+Test-Suite test-server
+  type:             detailed-0.9
+  hs-source-dirs:   Test, Events, Server
+  test-module:      TestServer
+  build-depends:    base == 4.*, HUnit, Pup-Events-PQueue, Pup-Events-Client, stm, random, uuid, json, time, Pup-Events-Server >=1.1.4, parsec, cabal-test-hunit, Cabal > 1.14
+  other-modules:    Server, Events
+  default-language: Haskell98
+  ghc-options:      -threaded

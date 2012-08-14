@@ -18,8 +18,8 @@ import Events
 -- |The doClient method is how we start the client side of the
 -- Pup-Events framework. It's called by the main application.
 doClient ip priorities =
-    do  (q1, q2) <- Client.client ip priorities lookupPriority lookupUnHandler parsers
-        return (q1, q2)
+    do  (q1, q2, dc) <- Client.client ip priorities lookupPriority lookupUnHandler parsers
+        return (q1, q2, dc)
 
 ---------------
 -- GameLeave --

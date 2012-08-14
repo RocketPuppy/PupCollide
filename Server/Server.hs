@@ -1,5 +1,6 @@
-module Main  (
+module Server (
     main,
+    mainTest,
     lookupHandlerServer
     ) where
 
@@ -27,6 +28,17 @@ main =
         playerInfos <- newTVarIO [] :: IO (TVar [(ThreadId, Username, Maybe Game)])
         Server.server (Just ip) priorities lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
 
+-- | Main method used for testing, it returns the state variables and an IO action to actually start the server.
+mainTest :: IO (TVar [Game], TVar [Username], TVar [(ThreadId, Username, Maybe Game)], IO b)
+mainTest =
+    do  args <- getArgs
+        let ip = args !! 0
+        let priorities = read (args !! 1) :: Int
+        games <- newTVarIO [] :: IO (TVar [Game])
+        usernames <- newTVarIO [] :: IO (TVar [Username])
+        playerInfos <- newTVarIO [] :: IO (TVar [(ThreadId, Username, Maybe Game)])
+        let runnable = Server.server (Just ip) priorities lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
+        return (games, usernames, playerInfos, runnable)
 ------------------
 -- GamesRequest --
 ------------------
@@ -177,7 +189,7 @@ main =
 -----------
 -- Login --
 -----------
---| Check if the requested username exists or if the user has already registered ( previous registration is signaled by this thread being in the list of playerInfos). If both of those are false than we log the user in.
+-- | Check if the requested username exists or if the user has already registered ( previous registration is signaled by this thread being in the list of playerInfos). If both of those are false than we log the user in.
 loginHandlerServer :: TVar [Username] -> TVar [(ThreadId, Username, Maybe Game)] -> Event -> IO Event
 loginHandlerServer usernames playerInfos e@(Login user) = 
     do  threadid <- myThreadId
@@ -206,7 +218,7 @@ loginHandlerServer usernames playerInfos e@(Login user) =
 ------------
 -- Logout --
 ------------
---| Check if the user is currently logged in, and if he is log him out.
+-- | Check if the user is currently logged in, and if he is log him out.
 logoutHandlerServer :: TVar [Username] -> TVar [(ThreadId, Username, Maybe Game)] -> Event -> IO Event
 logoutHandlerServer usernames playerInfos e@(Logout _) =
     do  threadid <- myThreadId
