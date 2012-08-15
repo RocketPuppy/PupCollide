@@ -7,6 +7,7 @@ module Server (
 import Text.Parsec hiding (Error)
 import qualified PupEventsServer as Server
 import System.Environment
+import System.Random
 import Events
 import Control.Concurrent.STM
 import qualified Data.UUID as UUID2
@@ -26,7 +27,7 @@ main =
         games <- newTVarIO [] :: IO (TVar [Game])
         usernames <- newTVarIO [] :: IO (TVar [Username])
         playerInfos <- newTVarIO [] :: IO (TVar [(ThreadId, Username, Maybe Game)])
-        Server.server (Just ip) priorities lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
+        Server.server (Just ip) priorities "1267" lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
 
 -- | Main method used for testing, it returns the state variables and an IO action to actually start the server.
 mainTest :: IO (TVar [Game], TVar [Username], TVar [(ThreadId, Username, Maybe Game)], IO b)
@@ -37,7 +38,8 @@ mainTest =
         games <- newTVarIO [] :: IO (TVar [Game])
         usernames <- newTVarIO [] :: IO (TVar [Username])
         playerInfos <- newTVarIO [] :: IO (TVar [(ThreadId, Username, Maybe Game)])
-        let runnable = Server.server (Just ip) priorities lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
+        port <- randomRIO (1024, 65535)
+        let runnable = Server.server (Just ip) priorities (show port) lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
         return (games, usernames, playerInfos, runnable)
 ------------------
 -- GamesRequest --
