@@ -7,7 +7,6 @@ module Server (
 import Text.Parsec hiding (Error)
 import qualified PupEventsServer as Server
 import System.Environment
-import System.Random
 import Events
 import Control.Concurrent.STM
 import qualified Data.UUID as UUID2
@@ -30,16 +29,15 @@ main =
         Server.server (Just ip) priorities "1267" lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
 
 -- | Main method used for testing, it returns the state variables and an IO action to actually start the server.
-mainTest :: IO (TVar [Game], TVar [Username], TVar [(ThreadId, Username, Maybe Game)], IO b)
-mainTest =
+mainTest :: String -> IO (TVar [Game], TVar [Username], TVar [(ThreadId, Username, Maybe Game)], IO b)
+mainTest port =
     do  args <- getArgs
         let ip = args !! 0
         let priorities = read (args !! 1) :: Int
         games <- newTVarIO [] :: IO (TVar [Game])
         usernames <- newTVarIO [] :: IO (TVar [Username])
         playerInfos <- newTVarIO [] :: IO (TVar [(ThreadId, Username, Maybe Game)])
-        port <- randomRIO (1024, 65535)
-        let runnable = Server.server (Just ip) priorities (show port) lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
+        let runnable = Server.server (Just ip) priorities port lookupPriority lookupUnHandler (lookupHandlerServer games usernames playerInfos) parsers (Just (Logout (Username "")))
         return (games, usernames, playerInfos, runnable)
 ------------------
 -- GamesRequest --
@@ -203,7 +201,7 @@ loginHandlerServer usernames playerInfos e@(Login user) =
                 if or [snd c | c <- conditions threadid usernames' playerInfos']
                     then
                         -- this finds the first error code that has a True condition. The use only gets one error code so he can get rid of them one by one if there are multiple errors
-                        return $ maybe (e) (Error . fst) (find ((==) True . snd) (conditions threadid usernames' playerInfos'))
+                        return $ maybe (Error GenericError) (Error . fst) (find ((==) True . snd) (conditions threadid usernames' playerInfos'))
                     else
                         -- add the user to the list of usernames and the (threadid, user, Nothing) to the playerinfos.
                         do  modifyTVar usernames (\x -> user:x)

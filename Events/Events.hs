@@ -30,7 +30,7 @@ data Event =
     | Error ErrorCode
     deriving (Eq, Typeable, Data, Show)
 
-data ErrorCode = AlreadyRegistered | UserExists | NotLoggedIn
+data ErrorCode = AlreadyRegistered | UserExists | NotLoggedIn | GenericError
     deriving (Eq, Typeable, Data, Show)
 
 data Game =

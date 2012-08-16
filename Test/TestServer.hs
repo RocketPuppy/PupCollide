@@ -10,6 +10,7 @@ import Control.Concurrent
 import Control.Exception.Base
 import Data.List
 import System.Environment
+import System.Random
 import qualified Distribution.TestSuite as Cabal
 import qualified Distribution.TestSuite.HUnit as CabalHUnit
 
@@ -18,27 +19,43 @@ tests = map (\(x,y) -> CabalHUnit.test x y)
     ]
 
 -- Start server
-startServer =
-    do  stuff <- withArgs ["localhost", "3"] Server.mainTest
+startServer port =
+    do  stuff <- withArgs ["localhost", "3"] (Server.mainTest port)
         return stuff
 
 -- Make connection
-connect =
-    do  (q1, q2, disconnect) <- Client.client Nothing 3 lookupPriority lookupUnHandler parsers
+connect port =
+    do  (q1, q2, disconnect) <- Client.client Nothing 3 port lookupPriority lookupUnHandler parsers
         return (q1, q2, disconnect)
 
 -- Bracketing
 bracketed = bracket
     (
-    do  (g, u, pI, r) <- startServer
+    do  putStrLn "\n----------------------"
+        port <- randomRIO (1024, 65535) :: IO Int
+        let port' = show port
+        (g, u, pI, r) <- startServer port'
+        putStr $ "Starting Server on port: " ++ port' ++ "... "
         tId <- forkIO r
-        (q1, q2, dc) <- connect
-        return (g, u, pI, q1, q2, dc, tId)
+        threadDelay 1000
+        putStr "Connecting... "
+        (q1, q2, dc) <- connect port'
+        let reconnect = connect port'
+        putStrLn "Entered bracket"
+        putStrLn "======================"
+        return (g, u, pI, q1, q2, dc, tId, reconnect, port')
     )
-    (\(_,_,_,_,_,dc, tId) ->
-        do  dc
+    (\(_,_,_,_,_,dc, tId, _, _) ->
+        do  putStrLn "======================"
             threadDelay 1000
+            putStr "Disconnecting... "
+            dc
+            threadDelay 1000
+            putStr "Killing server..."
             killThread tId
+            threadDelay 1000
+            putStrLn "Exited bracket"
+            putStrLn "-----------------------"
         )
     --(startServer >>= (\(g, u, pI, r) -> forkIO r >>= (\tId -> threadDelay 100 >> connect >>= (\(q1, q2, dc) -> return (g, u, pI, q1, q2, dc, tId)))))
     --(\(_,_,_,_,_,dc,tId) -> dc >> killThread tId)
@@ -78,11 +95,15 @@ assertNotEmpty msg xs
 loginTests = TestLabel "Login Tests" $
     TestList 
         [ TestLabel "Login !Exist !Registered" (TestCase loginNoExistNoRegister)
-        , TestLabel "Login !Exist Registered" (TestCase loginNoExistRegister)]
+        , TestLabel "Login !Exist Registered" (TestCase loginNoExistRegister)
+        , TestLabel "Login Exist !Registered" (TestCase loginExistNoRegister)
+        , TestLabel "Login Exist Registered" (TestCase loginExistRegister)
+        ]
 
 -- |User doesn't exist and we haven't logged in yet.
-loginNoExistNoRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _) ->
-    do  let user = Username "user1"
+loginNoExistNoRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _, _, port) ->
+    do  putStrLn $ "loginNoExistNoRegister on port: " ++ port
+        let user = Username "user1"
         let event = Login user
         -- get initial values
         users <- readTVarIO u
@@ -111,8 +132,9 @@ loginNoExistNoRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _) ->
         assertEqual "Not Login event!" event event'
 
 -- |User doesn't exist and we've logged in already
-loginNoExistRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _) ->
-    do  let user = Username "user1"
+loginNoExistRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _, _, port) ->
+    do  putStrLn $ "loginNoExistRegister on port: " ++ port
+        let user = Username "user1"
         let login = Login user
         atomically $ writeThing iQ (lookupPriority login) login
         login' <- getEvent oQ
@@ -121,10 +143,8 @@ loginNoExistRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _) ->
         -- initial data before we do the actual test
         users <- readTVarIO u
         players <- readTVarIO pI
-        let usersLen = length users
-        let playersLen = length players
         let user2 = Username "user2"
-        let login2 = Login user
+        let login2 = Login user2
         -- the following must be true for the initial data to be correct
         assertNotEmpty "Initial users is empty!" users
         assertNotEmpty "Initial playerInfos is empty!" players
@@ -136,4 +156,57 @@ loginNoExistRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _) ->
         players' <- readTVarIO pI
         assertEqual "Users have changed!" users users'
         assertEqual "Players have changed!" players players'
-        assertEqual "Did not receive proper event!" login2' (Error AlreadyRegistered)
+        assertEqual "Did not receive proper event!" (Error AlreadyRegistered) login2'
+
+-- |User exists, and we've not logged in already
+loginExistNoRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _, reconnect, port) ->
+    do  putStrLn $ "loginExistNoRegister on port: " ++ port
+        let user = Username "user1"
+        let login = Login user
+        atomically $ writeThing iQ (lookupPriority login) login
+        login' <- getEvent oQ
+        -- are we actually logged in?
+        assertEqual "User Exists" login login'
+        users <- readTVarIO u
+        players <- readTVarIO pI
+        -- make sure initial data is correct
+        assertNotEmpty "Initial users is empty!" users
+        assertNotEmpty "Initial playerInfos is empty!" players
+        assertFound "User doesn't exist!" ((==) user) users
+        assertFound "Player doesn't exist!" (\(_, x, _) -> x == user) players
+        -- actual test, connect with new client and try logging in
+        putStrLn "Trying new connection..."
+        (iQ', oQ', dc) <- reconnect
+        atomically $ writeThing iQ' (lookupPriority login) login
+        login2' <- getEvent oQ'
+        users' <- readTVarIO u
+        players' <- readTVarIO pI
+        assertEqual "Users have changed!" users users'
+        assertEqual "Players have changed!" players players'
+        assertEqual "Did not receive proper event!" (Error UserExists) login2'
+        dc
+
+-- |User exists, and we've already logged in
+loginExistRegister = bracketed $ \(g, u, pI, iQ, oQ, _, _, _, port) ->
+    do  putStrLn $ "loginExistRegister on port: " ++ port
+        let user = Username "user1"
+        let login = Login user
+        atomically $ writeThing iQ (lookupPriority login) login
+        login' <- getEvent oQ
+        -- make sure we're actually Logged In
+        assertEqual "User Exists" login login'
+        -- initial data before we do the actual test
+        users <- readTVarIO u
+        players <- readTVarIO pI
+        -- the following must be true for the initial data to be correct
+        assertNotEmpty "Initial users is empty!" users
+        assertNotEmpty "Initial playerInfos is empty!" players
+        assertFound "User doesn't exist!" ((==) user) users
+        assertFound "Player doesn't exist!" (\(_, x, _) -> x == user) players
+        atomically $ writeThing iQ (lookupPriority login) login
+        login2' <- getEvent oQ
+        users' <- readTVarIO u
+        players' <- readTVarIO pI
+        assertEqual "Users have changed!" users users'
+        assertEqual "Players have changed!" players players'
+        assertFound "Did not receive proper event!" ((==) login2') [Error AlreadyRegistered, Error UserExists]
